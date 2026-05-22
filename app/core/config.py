@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     db_password: str = "postgres"
     db_host: str = "127.0.0.1"
     db_port: int = 5432
-    db_name: str = "app_db"
+    db_name: str = "app_db" # To be change once the prototype ready
 
     @property
     def db_url(self) -> str:
@@ -45,6 +45,8 @@ class Settings(BaseSettings):
 
     # WebSocket
     ws_token_expire_minutes: int = 5
+    ws_heartbeat_interval: int = 30  # seconds between server pings
+    ws_heartbeat_timeout: int = 10   # seconds to wait for pong
 
     # Redis — full URL takes priority, fallback to individual params
     redis_url: str | None = None
