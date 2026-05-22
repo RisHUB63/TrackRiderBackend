@@ -32,3 +32,7 @@ app.include_router(ws_router, prefix="/api/v1")
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+@app.get("/")
+async def working():
+    return {"status": "OK", "message": "Welcome to the TrackRider Backend"}
