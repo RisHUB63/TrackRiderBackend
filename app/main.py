@@ -14,6 +14,7 @@ app = FastAPI(
     redoc_url="/redoc" if settings.debug else None,
 )
 
+API_VERSION = "/api/v1"
 
 @app.on_event("startup")
 async def on_startup():
@@ -23,10 +24,10 @@ async def on_startup():
     except Exception:
         pass  # Tables likely already exist in production
 
-
-app.include_router(auth_router, prefix="/api/v1")
-app.include_router(room_router, prefix="/api/v1")
-app.include_router(ws_router, prefix="/api/v1")
+        
+app.include_router(auth_router, prefix=API_VERSION)
+app.include_router(room_router, prefix=API_VERSION)
+app.include_router(ws_router, prefix=API_VERSION)
 
 
 @app.get("/health")

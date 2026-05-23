@@ -85,7 +85,7 @@ class ConnectionManager:
 
     # ─── Room Management ─────────────────────────────────────────────────
 
-    async def join_room(self, user_id: str, room_id: str) -> None:
+    async def join_room(self, user_id: str, room_id) -> None:
         """Add user to a socket room and notify other members."""
         conn = self._connections.get(user_id)
         if not conn:

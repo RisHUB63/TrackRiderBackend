@@ -1,27 +1,3 @@
-"""
-WebSocket API Endpoint
-
-Connection:
-  ws://host/api/v1/ws?token=<ws_token>&room_id=<room_id>
-
-The client connects with both a token and a room_id. Authentication and
-room assignment happen at connection time — no separate join step needed.
-
-Message Types (client -> server):
-  {"type": "pong"}                                    - Heartbeat response
-  {"type": "location", "lat": ..., "lng": ..., ...}  - Share location
-  {"type": "message", "text": "..."}                  - Send text to room
-
-Message Types (server -> client):
-  {"type": "ping", "ts": ...}                         - Heartbeat ping
-  {"type": "connected", "user_id": ..., "room_id": ..., "members": [...]}
-  {"type": "member_joined", "user_id": ...}
-  {"type": "member_left", "user_id": ...}
-  {"type": "location", "user_id": ..., "lat": ..., "lng": ..., ...}
-  {"type": "message", "user_id": ..., "text": ...}
-  {"type": "error", "detail": "..."}
-"""
-
 import json
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
@@ -98,7 +74,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await manager.disconnect(user_id, reason="client_disconnect")
 
 
-async def _handle_message(user_id: str, room_id: str, msg_type: str | None, data: dict) -> None:
+async def _handle_message(user_id: str, room_id, msg_type: str | None, data: dict) -> None:
     """Route incoming messages to the appropriate handler."""
 
     if msg_type == "pong":
