@@ -49,16 +49,18 @@ class RoomService:
         return room
 
     async def join_room(self, code: str, user_id: str) -> Room:
-        # Check if user is already in a room
-        existing = await self._get_user_membership(user_id)
-        if existing:
-            raise RoomServiceError("You are already in a room. Leave it first.", status_code=409)
-
         room = await self._get_room_by_code(code)
         if not room:
             raise RoomServiceError("Room not found", status_code=404)
         if not room.is_active:
             raise RoomServiceError("Room is no longer active", status_code=410)
+
+        # If user is already in this room (as member or creator), let them back in
+        existing = await self._get_user_membership(user_id)
+        if existing:
+            if existing.room_id == room.id:
+                return room
+            raise RoomServiceError("You are already in a different room. Leave it first.", status_code=409)
 
         # Check max members
         if room.max_members is not None:
