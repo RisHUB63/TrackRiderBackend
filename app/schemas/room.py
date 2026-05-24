@@ -38,3 +38,4 @@ class RoomMemberResponse(BaseModel):
     user_id: str
     email: str
     joined_at: datetime
+    is_admin: bool = False

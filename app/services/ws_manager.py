@@ -122,6 +122,29 @@ class ConnectionManager:
         await self._leave_room(user_id, conn.room_id, notify=True)
         conn.room_id = None
 
+    async def close_room(self, room_id: str, reason: str = "room_closed") -> None:
+        """Notify and disconnect every WS client in a room without leave-cascade noise."""
+        members = list(self._rooms.get(room_id, set()))
+        if not members:
+            return
+
+        # Drop the room set first so per-user disconnects don't broadcast member_left
+        self._rooms.pop(room_id, None)
+
+        for uid in members:
+            conn = self._connections.pop(uid, None)
+            if not conn:
+                continue
+            try:
+                await conn.websocket.send_json({"type": "room_closed", "room_id": room_id})
+            except Exception:
+                pass
+            try:
+                await conn.websocket.close(code=1000, reason=reason)
+            except Exception:
+                pass
+
+
     async def _leave_room(self, user_id: str, room_id: str, notify: bool = False) -> None:
         """Internal: remove user from room set and optionally notify."""
         room_members = self._rooms.get(room_id)
