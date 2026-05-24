@@ -1,7 +1,7 @@
 import secrets
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.room import Room, RoomMember
@@ -85,6 +85,23 @@ class RoomService:
 
         await self._session.delete(membership)
         await self._session.commit()
+    
+    async def close_room(self, room_id: str, user_id: str) -> Room:
+        result = await self._session.execute(select(Room).where(Room.id == room_id))
+        room = result.scalar_one_or_none()
+        if not room:
+            raise RoomServiceError("Room not found", status_code=404)
+        if room.created_by != user_id:
+            raise RoomServiceError("Only the room creator can close this room", status_code=403)
+        if not room.is_active:
+            raise RoomServiceError("Room is already closed", status_code=410)
+
+        room.is_active = False
+        await self._session.execute(delete(RoomMember).where(RoomMember.room_id == room_id))
+        await self._session.commit()
+        await self._session.refresh(room)
+        return room
+
 
     async def get_my_room(self, user_id: str) -> Room | None:
         membership = await self._get_user_membership(user_id)
@@ -99,6 +116,10 @@ class RoomService:
         if not membership or membership.room_id != room_id:
             raise RoomServiceError("You are not a member of this room", status_code=403)
 
+        room_result = await self._session.execute(select(Room).where(Room.id == room_id))
+        room = room_result.scalar_one_or_none()
+        admin_id = room.created_by if room else None
+
         from app.models.user import User
         result = await self._session.execute(
             select(RoomMember, User.email)
@@ -107,7 +128,13 @@ class RoomService:
         )
         rows = result.all()
         return [
-            {"id": m.id, "user_id": m.user_id, "email": email, "joined_at": m.joined_at}
+            {
+                "id": m.id,
+                "user_id": m.user_id,
+                "email": email,
+                "joined_at": m.joined_at,
+                "is_admin": m.user_id == admin_id,
+            }
             for m, email in rows
         ]
 

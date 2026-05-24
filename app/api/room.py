@@ -10,6 +10,7 @@ from app.schemas.room import (
     RoomResponse,
 )
 from app.services.room_service import RoomService, RoomServiceError
+from app.services.ws_manager import manager
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
@@ -79,6 +80,22 @@ async def leave_room(
         await service.leave_room(user_id=current_user.id)
     except RoomServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
+@router.post("/{room_id}/close", status_code=204)
+async def close_room(
+    room_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    try:
+        service = RoomService(session)
+        await service.close_room(room_id=room_id, user_id=current_user.id)
+    except RoomServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+    # Notify and disconnect any active WS clients in this room
+    await manager.close_room(room_id)
 
 
 @router.get("/me", response_model=RoomResponse | None)
