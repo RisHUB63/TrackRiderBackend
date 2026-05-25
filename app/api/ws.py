@@ -71,6 +71,7 @@ async def websocket_endpoint(websocket: WebSocket):
             except json.JSONDecodeError:
                 await manager.send_to_user(user_id, {
                     "type": "error",
+                    "code": "invalid_json",
                     "detail": "Invalid JSON",
                 })
                 continue
@@ -95,6 +96,7 @@ async def _handle_message(
             room_id,
             {
                 "type": "location",
+                "user_id": user_id,
                 "username": username,
                 "lat": data.get("lat"),
                 "lng": data.get("lng"),
@@ -110,6 +112,7 @@ async def _handle_message(
             room_id,
             {
                 "type": "message",
+                "user_id": user_id,
                 "username": username,
                 "text": data.get("text", ""),
             },
@@ -119,5 +122,6 @@ async def _handle_message(
     else:
         await manager.send_to_user(user_id, {
             "type": "error",
+            "code": "unknown_message_type",
             "detail": f"Unknown message type: {msg_type}",
         })

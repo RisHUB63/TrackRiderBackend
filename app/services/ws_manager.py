@@ -106,19 +106,27 @@ class ConnectionManager:
         # Notify other room members
         await self.broadcast_to_room(
             room_id,
-            {"type": "member_joined", "username": conn.username},
+            {
+                "type": "member_joined",
+                "user_id": user_id,
+                "username": conn.username,
+            },
             exclude=user_id,
         )
 
-        # Confirm to the user with current member usernames
-        member_usernames = [
-            self._connections[uid].username
+        # Confirm to the user with current members (user_id + username)
+        members = [
+            {
+                "user_id": uid,
+                "username": self._connections[uid].username,
+            }
             for uid in self._rooms[room_id]
             if uid in self._connections
         ]
         await self.send_to_user(user_id, {
             "type": "room_joined",
-            "members": member_usernames,
+            "room_id": room_id,
+            "members": members,
         })
 
     async def leave_room(self, user_id: str) -> None:
@@ -164,7 +172,11 @@ class ConnectionManager:
         if notify and room_members:
             await self.broadcast_to_room(
                 room_id,
-                {"type": "member_left", "username": username},
+                {
+                    "type": "member_left",
+                    "user_id": user_id,
+                    "username": username,
+                },
             )
 
         # Clean up empty rooms
