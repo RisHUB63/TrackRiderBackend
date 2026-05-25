@@ -29,18 +29,7 @@ async def create_room(
             created_by=current_user.id,
             max_members=body.max_members,
         )
-        count = await service.get_member_count(room.id)
-        return RoomResponse(
-            id=room.id,
-            name=room.name,
-            code=room.code,
-            type=room.type,
-            max_members=room.max_members,
-            is_active=room.is_active,
-            created_by=room.created_by,
-            created_at=room.created_at,
-            member_count=count,
-        )
+        return await service.build_room_response(room)
     except RoomServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
@@ -54,48 +43,31 @@ async def join_room(
     try:
         service = RoomService(session)
         room = await service.join_room(code=body.code, user_id=current_user.id)
-        count = await service.get_member_count(room.id)
-        return RoomResponse(
-            id=room.id,
-            name=room.name,
-            code=room.code,
-            type=room.type,
-            max_members=room.max_members,
-            is_active=room.is_active,
-            created_by=room.created_by,
-            created_at=room.created_at,
-            member_count=count,
+        return await service.build_room_response(room)
+    except RoomServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
+@router.post("/{code}/exit", status_code=204)
+async def exit_room(
+    code: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    """
+    Creator-only: ends the room. After this, the room is no longer available
+    and no one can rejoin it.
+    """
+    try:
+        service = RoomService(session)
+        room = await service.exit_room(
+            code=code.strip().upper(), user_id=current_user.id
         )
     except RoomServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
-
-@router.post("/leave", status_code=204)
-async def leave_room(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
-):
-    try:
-        service = RoomService(session)
-        await service.leave_room(user_id=current_user.id)
-    except RoomServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-
-
-@router.post("/{room_id}/close", status_code=204)
-async def close_room(
-    room_id: str,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
-):
-    try:
-        service = RoomService(session)
-        await service.close_room(room_id=room_id, user_id=current_user.id)
-    except RoomServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-
     # Notify and disconnect any active WS clients in this room
-    await manager.close_room(room_id)
+    await manager.close_room(room.id)
 
 
 @router.get("/me", response_model=RoomResponse | None)
@@ -107,29 +79,19 @@ async def my_room(
     room = await service.get_my_room(user_id=current_user.id)
     if not room:
         return None
-    count = await service.get_member_count(room.id)
-    return RoomResponse(
-        id=room.id,
-        name=room.name,
-        code=room.code,
-        type=room.type,
-        max_members=room.max_members,
-        is_active=room.is_active,
-        created_by=room.created_by,
-        created_at=room.created_at,
-        member_count=count,
-    )
+    return await service.build_room_response(room)
 
 
-@router.get("/{room_id}/members", response_model=list[RoomMemberResponse])
+@router.get("/{code}/members", response_model=list[RoomMemberResponse])
 async def room_members(
-    room_id: str,
+    code: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
     try:
         service = RoomService(session)
-        members = await service.get_room_members(room_id=room_id, user_id=current_user.id)
-        return members
+        return await service.get_room_members_by_code(
+            code=code.strip().upper(), user_id=current_user.id
+        )
     except RoomServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)

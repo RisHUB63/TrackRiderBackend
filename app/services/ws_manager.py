@@ -24,6 +24,7 @@ HEARTBEAT_TIMEOUT = settings.ws_heartbeat_timeout
 class Connection:
     websocket: WebSocket
     user_id: str
+    username: str
     room_id: str | None = None
     last_pong: float = field(default_factory=time.time)
     connected_at: float = field(default_factory=time.time)
@@ -46,13 +47,15 @@ class ConnectionManager:
 
     # ─── Connection Lifecycle ────────────────────────────────────────────
 
-    async def connect(self, websocket: WebSocket, user_id: str) -> Connection:
+    async def connect(
+        self, websocket: WebSocket, user_id: str, username: str
+    ) -> Connection:
         """Register a new connection. Disconnects previous session if exists."""
         # If user already connected, close old connection (handles reconnect)
         if user_id in self._connections:
             await self.disconnect(user_id, code=4001, reason="new_session")
 
-        conn = Connection(websocket=websocket, user_id=user_id)
+        conn = Connection(websocket=websocket, user_id=user_id, username=username)
         self._connections[user_id] = conn
 
         # Start heartbeat loop if not running
@@ -69,7 +72,7 @@ class ConnectionManager:
 
         # Remove from room
         if conn.room_id:
-            await self._leave_room(user_id, conn.room_id, notify=True)
+            await self._leave_room(user_id, conn.username, conn.room_id, notify=True)
 
         # Close the websocket gracefully
         try:
@@ -93,25 +96,29 @@ class ConnectionManager:
 
         # Leave current room first if in one
         if conn.room_id and conn.room_id != room_id:
-            await self._leave_room(user_id, conn.room_id, notify=True)
+            await self._leave_room(user_id, conn.username, conn.room_id, notify=True)
 
         conn.room_id = room_id
         if room_id not in self._rooms:
             self._rooms[room_id] = set()
         self._rooms[room_id].add(user_id)
 
-        # Notify room members
+        # Notify other room members
         await self.broadcast_to_room(
             room_id,
-            {"type": "member_joined", "user_id": user_id},
+            {"type": "member_joined", "username": conn.username},
             exclude=user_id,
         )
 
-        # Confirm to the user
+        # Confirm to the user with current member usernames
+        member_usernames = [
+            self._connections[uid].username
+            for uid in self._rooms[room_id]
+            if uid in self._connections
+        ]
         await self.send_to_user(user_id, {
             "type": "room_joined",
-            "room_id": room_id,
-            "members": list(self._rooms[room_id]),
+            "members": member_usernames,
         })
 
     async def leave_room(self, user_id: str) -> None:
@@ -119,7 +126,7 @@ class ConnectionManager:
         conn = self._connections.get(user_id)
         if not conn or not conn.room_id:
             return
-        await self._leave_room(user_id, conn.room_id, notify=True)
+        await self._leave_room(user_id, conn.username, conn.room_id, notify=True)
         conn.room_id = None
 
     async def close_room(self, room_id: str, reason: str = "room_closed") -> None:
@@ -136,7 +143,7 @@ class ConnectionManager:
             if not conn:
                 continue
             try:
-                await conn.websocket.send_json({"type": "room_closed", "room_id": room_id})
+                await conn.websocket.send_json({"type": "room_closed"})
             except Exception:
                 pass
             try:
@@ -144,8 +151,9 @@ class ConnectionManager:
             except Exception:
                 pass
 
-
-    async def _leave_room(self, user_id: str, room_id: str, notify: bool = False) -> None:
+    async def _leave_room(
+        self, user_id: str, username: str, room_id: str, notify: bool = False
+    ) -> None:
         """Internal: remove user from room set and optionally notify."""
         room_members = self._rooms.get(room_id)
         if not room_members:
@@ -156,7 +164,7 @@ class ConnectionManager:
         if notify and room_members:
             await self.broadcast_to_room(
                 room_id,
-                {"type": "member_left", "user_id": user_id},
+                {"type": "member_left", "username": username},
             )
 
         # Clean up empty rooms

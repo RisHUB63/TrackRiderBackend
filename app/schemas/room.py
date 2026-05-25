@@ -1,12 +1,17 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class RoomType(str, Enum):
     ride = "ride"
     track = "track"
+
+
+class MemberStatus(str, Enum):
+    admin = "admin"
+    member = "member"
 
 
 class CreateRoomRequest(BaseModel):
@@ -16,17 +21,21 @@ class CreateRoomRequest(BaseModel):
 
 
 class JoinRoomRequest(BaseModel):
-    code: str
+    code: str = Field(min_length=1, max_length=16)
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, v: str) -> str:
+        return v.strip().upper()
 
 
 class RoomResponse(BaseModel):
-    id: str
     name: str
     code: str
     type: RoomType
     max_members: int | None
     is_active: bool
-    created_by: str
+    created_by: str  # username of the creator
     created_at: datetime
     member_count: int = 0
 
@@ -34,8 +43,6 @@ class RoomResponse(BaseModel):
 
 
 class RoomMemberResponse(BaseModel):
-    id: str
-    user_id: str
-    email: str
+    username: str
     joined_at: datetime
-    is_admin: bool = False
+    status: MemberStatus

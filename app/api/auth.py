@@ -22,7 +22,9 @@ bearer_scheme = HTTPBearer()
 async def signup(body: UserSignup, session: AsyncSession = Depends(get_db)):
     try:
         service = AuthService(session)
-        user = await service.signup(email=body.email, password=body.password)
+        user = await service.signup(
+            email=body.email, username=body.username, password=body.password
+        )
         return user
     except AuthServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
@@ -32,7 +34,7 @@ async def signup(body: UserSignup, session: AsyncSession = Depends(get_db)):
 async def login(body: UserLogin, session: AsyncSession = Depends(get_db)):
     try:
         service = AuthService(session)
-        return await service.login(email=body.email, password=body.password)
+        return await service.login(identifier=body.identifier, password=body.password)
     except AuthServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
